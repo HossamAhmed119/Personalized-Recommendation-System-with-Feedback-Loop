@@ -1,6 +1,4 @@
 .env
-data/*
-!data/.gitkeep
 
 data/raw/*
 data/embedded/*
