@@ -1,0 +1,10 @@
+dataset:
+  electronics:
+    ratings_url: "https://mcauleylab.ucsd.edu/public_datasets/data/amazon_2023/raw/review_categories/Electronics.jsonl.gz"
+    metadata_url: "https://mcauleylab.ucsd.edu/public_datasets/data/amazon_2023/raw/meta_categories/meta_Electronics.jsonl.gz"
+    sample_size: 100000  
+    
+paths:
+  raw_data: "data/raw/"
+  processed_data: "data/processed/"
+  embeddings_data: "data/embeddings/"

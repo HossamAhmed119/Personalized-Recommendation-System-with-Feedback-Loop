@@ -1,0 +1,55 @@
+# Data
+pandas
+numpy
+scikit-learn
+
+# Recommendation Models
+scipy
+implicit
+
+# Deep Learning
+torch
+transformers
+
+# RAG & LLM
+langchain
+langchain-openai
+faiss-cpu
+sentence-transformers
+
+# API
+fastapi
+uvicorn
+pydantic
+
+# MLOps
+mlflow
+great-expectations
+
+# Cloud
+azure-ai-ml
+azure-identity
+
+# Utilities
+python-dotenv
+pyyaml
+tqdm
+requests
+loguru
+
+# Progress Bar
+tqdm          
+
+
+
+# Visualization
+matplotlib
+seaborn
+plotly
+
+# Database
+sqlalchemy
+
+# Testing
+pytest
+pytest-cov
