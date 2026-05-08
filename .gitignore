@@ -1,6 +1,15 @@
 .env
 data/*
 !data/.gitkeep
+
+data/raw/*
+data/embedded/*
+data/processed/*
+
+!data/raw/.gitkeep
+!data/embedded/.gitkeep
+!data/processed/.gitkeep
+
 logs/
 __pycache__/
 *.pyc
