@@ -1,9 +1,12 @@
 import os
 
-PROJECT_ROOT = "recommendation-system"
+PROJECT_NAME = "recommendation-system"
 
-folders_with_init = [
-    "src",
+folders = [
+    "configs/experiments",
+    "data/raw",
+    "data/processed",
+    "data/embeddings",
     "src/utils",
     "src/data_pipeline",
     "src/models",
@@ -11,58 +14,83 @@ folders_with_init = [
     "src/services",
     "src/api",
     "mlops",
-    "tests"
+    "tests",
+    "docs"
 ]
 
-def create_init_files():
-    print("\n🔧 Creating __init__.py files...\n")
+files = {
+    "README.md": "# Recommendation System ",
+    "requirements.txt": "",
+    ".env.example": "",
+    "Dockerfile": "",
+    "docker-compose.yml": "",
 
-    for folder in folders_with_init:
-        path = os.path.join(PROJECT_ROOT, folder)
+    "configs/app_config.yaml": "",
+    "configs/data_config.yaml": "",
+    "configs/model_config.yaml": "",
+    "configs/training_config.yaml": "",
+
+    "configs/experiments/exp_001.yaml": "",
+    "configs/experiments/exp_002.yaml": "",
+
+    "src/utils/config_loader.py": "",
+    "src/utils/logger.py": "",
+    "src/utils/helpers.py": "",
+
+    "src/data_pipeline/ingest.py": "",
+    "src/data_pipeline/preprocess.py": "",
+    "src/data_pipeline/features.py": "",
+
+    "src/models/cf_model.py": "",
+    "src/models/deep_model.py": "",
+    "src/models/llm_reranker.py": "",
+
+    "src/rag/embedder.py": "",
+    "src/rag/vector_store.py": "",
+    "src/rag/retriever.py": "",
+
+    "src/services/recommender_service.py": "",
+
+    "src/api/main.py": "",
+
+    "src/__init__.py": "# Auto-generated package initializer",
+    "src/utils/__init__.py": "# Auto-generated package initializer",
+    "src/data_pipeline/__init__.py": "# Auto-generated package initializer",
+    "src/models/__init__.py": "# Auto-generated package initializer",
+    "src/rag/__init__.py": "# Auto-generated package initializer",
+    "src/services/__init__.py": "# Auto-generated package initializer",
+    "src/api/__init__.py": "# Auto-generated package initializer",
+
+    "mlops/train.py": "",
+    "mlops/evaluate.py": "",
+    "mlops/mlflow_tracking.py": "",
+
+    "docs/architecture.md": "",
+
+    ".gitignore": ".env\ndata/\nlogs/\n__pycache__/\n*.pyc\nvenv/",
+    "data/raw/.gitkeep": "",
+    "data/processed/.gitkeep": "",
+    "data/embeddings/.gitkeep": ""
+
+
+}
+
+def create_project():
+    # create folders
+    for folder in folders:
+        path = os.path.join(PROJECT_NAME, folder)
         os.makedirs(path, exist_ok=True)
+        print(f"[+] Created folder: {path}")
 
-        init_file = os.path.join(path, "__init__.py")
+    # create files
+    for file_path, content in files.items():
+        path = os.path.join(PROJECT_NAME, file_path)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        print(f"[+] Created file: {path}")
 
-        with open(init_file, "w", encoding="utf-8") as f:
-            f.write("# Auto-generated package initializer\n")
-
-        print(f"[+] Added package: {init_file}")
-
-def create_path_setup():
-    print("\n🔗 Creating path setup utility...\n")
-
-    utils_path = os.path.join(PROJECT_ROOT, "src/utils")
-    os.makedirs(utils_path, exist_ok=True)
-
-    file_path = os.path.join(utils_path, "path_setup.py")
-
-    content = """import os
-import sys
-
-# Get project root dynamically
-PROJECT_ROOT = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..")
-)
-
-# Add to system path
-if PROJECT_ROOT not in sys.path:
-    sys.path.append(PROJECT_ROOT)
-
-print(f\"[INFO] Project root added to sys.path: {PROJECT_ROOT}\")
-"""
-
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(content)
-
-    print(f"[+] Created: {file_path}")
-
-def main():
-    print("\n Setting up project structure connectivity...\n")
-
-    create_init_files()
-    create_path_setup()
-
-    print("\n DONE Your project is now fully wired and import-ready\n")
+    print("\n🎉 Project structure created successfully!")
 
 if __name__ == "__main__":
-    main()
+    create_project()
