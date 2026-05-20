@@ -8,3 +8,34 @@ paths:
   raw_data: "data/raw/"
   processed_data: "data/processed/"
   embeddings_data: "data/embeddings/"
+
+preprocessing:
+  missing_values:
+    subset: ['title', 'text']
+  
+  outliers:
+    columns: ['helpful_vote']
+    method: "upper"
+  
+  spam_detection:
+    max_reviews_per_day: 5
+    min_time_gap: 10
+  
+  review_weight:
+    verified: 1.0
+    unverified: 0.7
+  
+  text_filter:
+    min_words: 5
+    max_words: 250
+  
+  split:
+    test_year: 2022
+  
+  encode:
+    columns: ['user_id', 'asin']
+  
+  drop_columns: ['images']
+
+  convert_to_integer:
+    columns: ['verified_purchase']
