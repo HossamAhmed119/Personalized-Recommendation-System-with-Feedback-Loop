@@ -2,7 +2,8 @@ dataset:
   electronics:
     ratings_url: "https://mcauleylab.ucsd.edu/public_datasets/data/amazon_2023/raw/review_categories/Electronics.jsonl.gz"
     metadata_url: "https://mcauleylab.ucsd.edu/public_datasets/data/amazon_2023/raw/meta_categories/meta_Electronics.jsonl.gz"
-    sample_size: 100000  
+    sample_size: 1000000 
+    chunk_size: 100000
     
 paths:
   raw_data: "data/raw/"
@@ -15,7 +16,6 @@ preprocessing:
   
   outliers:
     columns: ['helpful_vote']
-    method: "upper"
   
   spam_detection:
     max_reviews_per_day: 5
@@ -30,6 +30,7 @@ preprocessing:
     max_words: 250
   
   split:
+    val_year: 2021  
     test_year: 2022
   
   encode:

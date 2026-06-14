@@ -26,9 +26,14 @@ raw_path = config['paths']['raw_data']
 fig_path = "docs/figures/"
 os.makedirs(fig_path, exist_ok=True)
 
-df_ratings = pd.read_csv(raw_path + "Electronics_ratings.csv")
-df_ratings['timestamp'] = pd.to_datetime(df_ratings['timestamp'], unit='ms', errors='coerce')
-df_ratings['verified_purchase'] = df_ratings['verified_purchase'].astype(int)
+# Load data from parquet instead of CSV
+df_ratings = pd.read_parquet(raw_path + "Electronics_ratings.parquet")
+
+# Ensure timestamp is datetime
+if 'timestamp' in df_ratings.columns:
+    df_ratings['timestamp'] = pd.to_datetime(df_ratings['timestamp'], unit='ms', errors='coerce')
+if 'verified_purchase' in df_ratings.columns:
+    df_ratings['verified_purchase'] = df_ratings['verified_purchase'].astype(int)
 
 print("[INFO] Data loaded ✅")
 
@@ -184,6 +189,19 @@ plt.yscale('log')
 plt.title('Spam Detection: Ratings Count vs Min Time Gap')
 plt.legend()
 save("11_spam_detection.png")
+
+
+# ── 12. Yearly Ratings Distribution ────────────────────────────
+yearly_counts = df_ratings['timestamp'].dt.year.value_counts().sort_index()
+
+plt.figure(figsize=(12, 6))
+sns.barplot(x=yearly_counts.index.astype(int), y=yearly_counts.values, palette='viridis')
+plt.title('Yearly Ratings Distribution')
+plt.xlabel('Year')
+plt.ylabel('Number of Ratings')
+plt.xticks(rotation=45)
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+save("12_yearly_distribution.png")
 
 
 print(f"\n✅ All figures saved to: {fig_path}")

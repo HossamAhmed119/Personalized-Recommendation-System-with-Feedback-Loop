@@ -25,20 +25,39 @@ def _validate_columns(df: pd.DataFrame, columns: list, required: bool = False) -
     return valid
 
 
-def remove_missing_values(df: pd.DataFrame, subset: list = None) -> pd.DataFrame:
+def replace_none_strings(df: pd.DataFrame, columns: list) -> pd.DataFrame:
     """
-    Removes rows with missing values.
+    Replaces 'None' strings and empty strings with actual NaN values.
     
     Args:
         df: Input dataframe
-        subset: List of columns to check for nulls (None = all columns)
+        columns: List of columns to clean
     Returns:
         Cleaned dataframe
+    """
+    columns = _validate_columns(df, columns, required=False)
+    
+    for col in columns:
+        df[col] = df[col].replace({'None': None, '': None})
+        
+    print(f"[INFO] Replaced None strings in: {columns}")
+    return df
+
+
+def remove_missing_values(df: pd.DataFrame, subset: list = None) -> pd.DataFrame:
+    """
+    Removes rows with missing values (Optimized for Parquet).
     """
     before = len(df)
     if subset:
         subset = _validate_columns(df, subset)
+        
+        for col in subset:
+            if df[col].dtype == 'object':
+                df[col] = df[col].replace(r'^\s*$', np.nan, regex=True)
+                
     df.dropna(subset=subset if subset else None, inplace=True)
+    
     after = len(df)
     print(f"[INFO] Removed {before - after} rows with missing values")
     return df
@@ -79,41 +98,22 @@ def drop_useless_columns(df: pd.DataFrame, columns: list) -> pd.DataFrame:
     return df
 
 
-def handle_outliers(df: pd.DataFrame, columns: list, method: str = "upper") -> pd.DataFrame:
+def handle_outliers(df: pd.DataFrame, columns: list) -> pd.DataFrame:
     """
-    Caps outliers in specified columns using IQR method.
+    Handles outliers by applying Log Transformation (log1p) 
+    to preserve the Long-Tail distribution signal without clipping data.
     
     Args:
         df: Input dataframe
-        columns: List of column names to handle outliers
-        method: "upper", "lower", or "both"
+        columns: List of column names to transform
     Returns:
-        Dataframe with capped outliers
+        Dataframe with log-transformed columns
     """
-    method = method.lower()
-    if method not in ["upper", "lower", "both"]:
-        raise ValueError(f"method must be 'upper', 'lower', or 'both'. Got: {method}")
-
     columns = _validate_columns(df, columns, required=True)
 
     for column in columns:
-        Q1 = df[column].quantile(0.25)
-        Q3 = df[column].quantile(0.75)
-        IQR = Q3 - Q1
-        lower = Q1 - 1.5 * IQR
-        upper = Q3 + 1.5 * IQR
-
-        if method == "upper":
-            outliers = (df[column] > upper).sum()
-            df[column] = df[column].clip(upper=upper)
-        elif method == "lower":
-            outliers = (df[column] < lower).sum()
-            df[column] = df[column].clip(lower=lower)
-        elif method == "both":
-            outliers = ((df[column] > upper) | (df[column] < lower)).sum()
-            df[column] = df[column].clip(lower=lower, upper=upper)
-
-        print(f"[INFO] Capped {outliers} outliers in '{column}' using method='{method}'")
+        df[column] = np.log1p(df[column])
+        print(f"[INFO] Applied Log Transformation (log1p) to '{column}'")
 
     return df
 
@@ -272,29 +272,40 @@ def encode_labels(df: pd.DataFrame, columns: list, encoders: dict = None) -> tup
     return df, encoders
 
 
-def time_based_split(df: pd.DataFrame, column: str = "timestamp", test_year: int = 2022) -> tuple:
+def time_based_split(df: pd.DataFrame, column: str = "timestamp", val_year: int = 2021, test_year: int = 2022) -> tuple:
     """
-    Splits dataframe into train and test sets based on time.
+    Splits dataframe into train, validation, and test sets based on time.
+    
+    This time-based splitting prevents data leakage by ensuring that the 
+    model is trained on historical data and evaluated on future data.
     
     Args:
-        df: Input dataframe
-        column: Timestamp column name
-        test_year: Year to split on (test = this year onwards)
+        df (pd.DataFrame): Input dataframe containing the interaction data.
+        column (str): The name of the datetime column used for splitting. Defaults to "timestamp".
+        val_year (int): The starting year for the validation set. Defaults to 2021.
+        test_year (int): The starting year for the test set. Defaults to 2022.
+        
     Returns:
-        Tuple of (train_df, test_df)
+        tuple: A tuple containing three pandas DataFrames:
+            - train_df: Data before val_year.
+            - val_df: Data from val_year up to (but not including) test_year.
+            - test_df: Data from test_year onwards.
     """
+    from src.data_pipeline.preprocess import _validate_columns
     _validate_columns(df, [column], required=True)
     
-    train_df = df[df[column].dt.year < test_year].copy()
+    train_df = df[df[column].dt.year < val_year].copy()
+    
+    val_df   = df[(df[column].dt.year >= val_year) & (df[column].dt.year < test_year)].copy()
+    
     test_df  = df[df[column].dt.year >= test_year].copy()
 
-    train_ratio = len(train_df) / len(df) * 100
-    test_ratio  = len(test_df) / len(df) * 100
+    total = len(df)
+    print(f"[INFO] Train: {len(train_df)} rows ({len(train_df)/total*100:.1f}%)")
+    print(f"[INFO] Val:   {len(val_df)} rows ({len(val_df)/total*100:.1f}%)")
+    print(f"[INFO] Test:  {len(test_df)} rows ({len(test_df)/total*100:.1f}%)")
 
-    print(f"[INFO] Train: {len(train_df)} rows ({train_ratio:.1f}%)")
-    print(f"[INFO] Test:  {len(test_df)} rows ({test_ratio:.1f}%)")
-
-    return train_df, test_df
+    return train_df, val_df, test_df
 
 
 def normalize(df: pd.DataFrame, column: str, scaler=None) -> tuple:

@@ -59,33 +59,49 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+import numpy as np
+import pandas as pd
+from scipy.sparse import csr_matrix
+from src.data_pipeline.preprocess import _validate_columns
+
 def build_user_item_matrix(df: pd.DataFrame,
+                           total_users: int,
+                           total_items: int,
                            user_col: str = 'user_id',
                            item_col: str = 'asin',
-                           rating_col: str = 'rating') -> tuple:
+                           rating_col: str = 'rating') -> csr_matrix:
     """
-    Builds a sparse user-item interaction matrix.
+    Builds a sparse user-item interaction matrix with fixed dimensions.
+    
+    Fixing the dimensions ensures that the matrix shape remains consistent 
+    across Train, Validation, and Test sets. This is strictly required for 
+    matrix multiplication and model evaluation without index mismatch errors.
     
     Args:
-        df: Input dataframe
-        user_col: User column name
-        item_col: Item column name
-        rating_col: Rating column name
+        df (pd.DataFrame): Input dataframe containing the interactions.
+        total_users (int): Total number of unique users globally (from LabelEncoder).
+        total_items (int): Total number of unique items globally (from LabelEncoder).
+        user_col (str): Column name for users. Defaults to 'user_id'.
+        item_col (str): Column name for items. Defaults to 'asin'.
+        rating_col (str): Column name for ratings. Defaults to 'rating'.
+        
     Returns:
-        Tuple of (sparse matrix, pivot dataframe)
+        csr_matrix: A sparse matrix of shape (total_users, total_items).
     """
     _validate_columns(df, [user_col, item_col, rating_col], required=True)
 
-    # create dense pivot table first
-    pivot_df = df.pivot_table(index=user_col,
-                              columns=item_col,
-                              values=rating_col,
-                              fill_value=0)
+    # Extract values as numpy arrays for fast matrix construction
+    users = df[user_col].values
+    items = df[item_col].values
+    ratings = df[rating_col].values
 
-    # convert to sparse matrix to save memory
-    matrix = csr_matrix(pivot_df.values)
+    # Build the sparse matrix with the globally fixed shape
+    matrix = csr_matrix((ratings, (users, items)), shape=(total_users, total_items))
 
-    print(f"[INFO] Matrix shape: {matrix.shape}")
-    print(f"[INFO] Sparsity: {1 - matrix.nnz / (matrix.shape[0] * matrix.shape[1]):.4%}")
-
-    return matrix, pivot_df
+    # Calculate and log sparsity
+    sparsity = 1 - matrix.nnz / (matrix.shape[0] * matrix.shape[1])
+    
+    print(f"[INFO] Matrix built successfully with shape: {matrix.shape}")
+    print(f"[INFO] Matrix sparsity: {sparsity:.4%}")
+    
+    return matrix
