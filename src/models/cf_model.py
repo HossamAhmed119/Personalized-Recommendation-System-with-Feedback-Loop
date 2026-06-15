@@ -79,6 +79,43 @@ class ItemBasedKNN(BaseRecommender):
         recommendations = list(zip(indices, distances))
         return recommendations
     
+    def recommend_for_user(self, user_id, n_recommendations=10):
+        """
+        Generates personalized recommendations by aggregating similar items 
+        for all items the user has previously interacted with.
+        """
+        if self.item_matrix is None:
+            raise ValueError("Model has not been trained. Call 'fit' first.")
+            
+        # Get items the user interacted with (item_matrix is Items x Users)
+        user_interacted_items = self.item_matrix[:, user_id].nonzero()[0]
+        
+        if len(user_interacted_items) == 0:
+            return []
+            
+        candidate_items = {}
+        
+        # Find similar items for each item the user interacted with
+        for item_id in user_interacted_items:
+            # Get top 5 similar items per interacted item to optimize speed
+            recs = self.recommend(item_id, n_recommendations=5)
+            
+            for rec_id, distance in recs:
+                if rec_id not in user_interacted_items:
+                    # Convert distance to similarity score
+                    sim_score = 1 - distance 
+                    
+                    # Aggregate scores if the same item is recommended multiple times
+                    if rec_id in candidate_items:
+                        candidate_items[rec_id] += sim_score
+                    else:
+                        candidate_items[rec_id] = sim_score
+                        
+        # Sort candidate items by highest aggregated similarity score
+        sorted_candidates = sorted(candidate_items.items(), key=lambda x: x[1], reverse=True)
+        
+        return sorted_candidates[:n_recommendations]
+    
 
 class ALSRecommender(BaseRecommender):
     """

@@ -81,6 +81,7 @@ files = {
     "mlops/train.py": "",
     "mlops/evaluate.py": "",
     "mlops/mlflow_tracking.py": "",
+    "mlops/tune.py": "",
 
     "docs/architecture.md": "",
     "docs/figures/.gitkeep": "",

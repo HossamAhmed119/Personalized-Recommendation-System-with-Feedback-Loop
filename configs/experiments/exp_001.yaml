@@ -1,0 +1,19 @@
+experiment:
+  name: "ALS_Optuna_Tuning"
+  mlflow_uri: "sqlite:///mlflow.db"
+  optuna_uri: "sqlite:///optuna_study.db"
+  train_path: "data/processed/train.parquet"
+  val_path: "data/processed/val.parquet"
+  # test_path: "data/processed/test.parquet" 
+  n_trials: 20
+
+search_space:
+  factors:
+    choices: [50, 100, 150, 200]
+  iterations:
+    low: 15
+    high: 50
+    step: 5
+  regularization:
+    low: 0.01
+    high: 0.1

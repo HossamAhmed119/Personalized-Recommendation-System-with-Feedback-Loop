@@ -11,6 +11,11 @@ paths:
   embeddings_data: "data/embeddings/"
 
 preprocessing:
+  implicit_feedback:
+    user_col: 'user_id'
+    item_col: 'parent_asin'
+    min_user_interactions: 10
+    
   missing_values:
     subset: ['title', 'text']
   
