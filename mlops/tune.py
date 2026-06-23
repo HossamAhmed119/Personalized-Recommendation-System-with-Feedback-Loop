@@ -61,7 +61,7 @@ def objective(trial, config):
         
         # Train the model using the parameters for this trial
         # Unpack the 4 returned variables to ensure correct evaluation filtering
-        model, train_matrix, val_matrix, test_users = train_als(
+        model, _, val_matrix, test_users = train_als(
             train_df=train_df,
             val_df=val_df,
             factors=factors,
@@ -71,12 +71,11 @@ def objective(trial, config):
 
         # Evaluate the trained model
         metrics_dict = evaluate_model_at_k(
-            model=model, 
-            train_matrix=train_matrix,
-            val_matrix=val_matrix, 
-            users_to_evaluate=test_users, 
-            k=10
-        )
+        model=model,
+        val_matrix=val_matrix,
+        users_to_evaluate=test_users,
+        k=10
+    )   
         
         # Log all calculated metrics (HitRate_10, Precision_10, Recall_10, MRR_10, NDCG_10)
         tracker.log_metrics(metrics_dict)

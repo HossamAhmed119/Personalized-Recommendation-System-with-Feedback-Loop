@@ -59,16 +59,11 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-import numpy as np
-import pandas as pd
-from scipy.sparse import csr_matrix
-from src.data_pipeline.preprocess import _validate_columns
-
 def build_user_item_matrix(df: pd.DataFrame,
                            total_users: int,
                            total_items: int,
                            user_col: str = 'user_id',
-                           item_col: str = 'asin',
+                           item_col: str = 'parent_asin',
                            rating_col: str = 'rating') -> csr_matrix:
     """
     Builds a sparse user-item interaction matrix with fixed dimensions.
@@ -105,3 +100,47 @@ def build_user_item_matrix(df: pd.DataFrame,
     print(f"[INFO] Matrix sparsity: {sparsity:.4%}")
     
     return matrix
+
+
+def add_store_tier(df_meta: pd.DataFrame,
+                   small_max: int = 2,
+                   large_min: int = 50,
+                   rating_threshold: float = 4.4) -> pd.DataFrame:
+    """
+    Adds a combined store_tier column based on product count and average rating.
+    
+    Args:
+        df_meta: Metadata dataframe
+        small_max: Max products for small sellers
+        large_min: Min products for large/premium stores
+        rating_threshold: Min avg rating for premium classification
+    Returns:
+        Dataframe with store_tier column added (Premium / Trusted / Small Seller)
+    """
+    _validate_columns(df_meta, ['store', 'parent_asin', 'average_rating'], required=True)
+
+    store_stats = df_meta.groupby('store').agg(
+        product_count=('parent_asin', 'count'),
+        avg_rating=('average_rating', 'mean')
+    ).reset_index()
+
+    def classify(row):
+        if row['product_count'] >= large_min and row['avg_rating'] >= rating_threshold:
+            return 'Premium'
+        elif row['product_count'] > small_max or row['avg_rating'] >= 3.6:
+            return 'Trusted'
+        else:
+            return 'Small Seller'
+
+    store_stats['store_tier'] = store_stats.apply(classify, axis=1)
+
+    df_meta = df_meta.merge(
+        store_stats[['store', 'store_tier']],
+        on='store',
+        how='left'
+    )
+
+    print(f"[INFO] Store tier distribution:")
+    print(df_meta['store_tier'].value_counts())
+
+    return df_meta

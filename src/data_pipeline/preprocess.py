@@ -21,6 +21,13 @@ Pipeline Order:
 from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
+import os
+import re
+import json
+import gzip
+import joblib
+import pandas as pd
+from tqdm import tqdm
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 
 
@@ -654,3 +661,82 @@ def normalize(df: pd.DataFrame, column: str, scaler: Optional[MinMaxScaler] = No
         df[column] = scaler.transform(df[[column]])
         print(f"[INFO] Normalized '{column}' (applied) -> range [0, 1]")
     return df, scaler
+
+
+
+def clean_text_field(text: str) -> str:
+    """Removes HTML tags and cleans up extra whitespaces/newlines from text."""
+    if not isinstance(text, str) or not text.strip():
+        return ""
+    clean_text = re.sub(r'<[^>]+>', ' ', text)
+    clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+    return clean_text
+
+
+def process_metadata(raw_meta_path: str, processed_path: str) -> pd.DataFrame:
+    """Streams metadata, filters by active ASINs, cleans text, and saves to parquet."""
+    encoder_file = os.path.join(processed_path, 'encoders.pkl')
+    if not os.path.exists(encoder_file):
+        raise FileNotFoundError(f"[ERROR] Encoders file not found at: {encoder_file}")
+        
+    print("[INFO] Loading Item Encoder to extract active target ASINs...")
+    encoders = joblib.load(encoder_file)
+    item_encoder = encoders['parent_asin']
+    active_asins = set(item_encoder.classes_)
+    
+    print(f"[INFO] Target dimensions aligned! Extracting metadata for exactly {len(active_asins)} items.")
+
+    extracted_data = []
+    open_func = gzip.open if raw_meta_path.endswith('.gz') else open
+    mode = 'rt' if raw_meta_path.endswith('.gz') else 'r'
+
+    print(f"[INFO] Streaming and filtering raw metadata from: {raw_meta_path}")
+    with open_func(raw_meta_path, mode, encoding='utf-8') as f:
+        for line in tqdm(f, desc="Filtering & Cleaning Metadata"):
+            try:
+                item = json.loads(line)
+                asin = item.get('parent_asin')
+                
+                # Skip if the item isn't in our interaction history
+                if asin not in active_asins:
+                    continue
+                
+                title = clean_text_field(item.get('title', 'Unknown Title'))
+                brand = clean_text_field(item.get('brand', 'Unknown Brand'))
+                
+                desc_raw = item.get('description', '')
+                if isinstance(desc_raw, list):
+                    desc_raw = " ".join(desc_raw)
+                description = clean_text_field(desc_raw)
+                
+                cats_raw = item.get('categories', [])
+                categories = ""
+                if cats_raw:
+                    if isinstance(cats_raw[0], list):
+                        categories = ", ".join(list(set([c for sublist in cats_raw for c in sublist])))
+                    else:
+                        categories = ", ".join(cats_raw)
+                categories = clean_text_field(categories if categories else 'Unknown Category')
+                        
+                combined_text = f"Product Title: {title}. Brand: {brand}. Categories: {categories}. Description: {description}".lower()
+                
+                extracted_data.append({
+                    'parent_asin': asin,
+                    'title': title,
+                    'brand': brand,
+                    'categories': categories,
+                    'description': description,
+                    'combined_text': combined_text
+                })
+                
+            except json.JSONDecodeError:
+                continue
+
+    meta_df = pd.DataFrame(extracted_data)
+    print(f"\n[INFO] Extraction complete! Processed metadata for {len(meta_df)} out of {len(active_asins)} items.")
+    
+    output_file = os.path.join(processed_path, 'clean_metadata.parquet')
+    meta_df.to_parquet(output_file, index=False)
+    print(f"[INFO] Clean metadata saved successfully to: {output_file}")
+    
+    return meta_df

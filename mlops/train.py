@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
-from implicit.als import AlternatingLeastSquares
 from typing import Tuple
+from src.models.cf_model import ALSRecommender
+
 
 def prepare_sparse_matrices(train_df: pd.DataFrame, val_df: pd.DataFrame) -> Tuple[sparse.csr_matrix, sparse.csr_matrix, np.ndarray]:
     """
@@ -35,21 +36,24 @@ def prepare_sparse_matrices(train_df: pd.DataFrame, val_df: pd.DataFrame) -> Tup
     
     return train_matrix, val_matrix, users_to_evaluate
 
-def train_als(train_df: pd.DataFrame, val_df: pd.DataFrame, factors: int = 100, iterations: int = 15, regularization: float = 0.01):
+
+def train_als(train_df: pd.DataFrame, val_df: pd.DataFrame, 
+              factors: int = 100, iterations: int = 15, 
+              regularization: float = 0.01):
     """
-    Trains the Implicit ALS model and returns necessary matrices.
+    Trains an ALS model using the ALSRecommender class from cf_model.py
+    instead of duplicating the implicit logic here.
     """
     train_matrix, val_matrix, test_users = prepare_sparse_matrices(train_df, val_df)
 
-    model = AlternatingLeastSquares(
+    
+    model = ALSRecommender(
         factors=factors,
         iterations=iterations,
         regularization=regularization,
-        random_state=42,
-        calculate_training_loss=False
+        random_state=42
     )
 
     model.fit(train_matrix)
 
-    # Added train_matrix to the returned variables
     return model, train_matrix, val_matrix, test_users
