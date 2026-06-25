@@ -67,25 +67,54 @@ def _validate_columns(
 
 
 def replace_none_strings(df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
-    """Replace 'None' string representations with proper NaN values.
+    """Replace None-like strings and empty values with None.
 
-    Converts string representations of missing values ('None', 'none', empty
-    strings) to pandas NaN for consistent missing value handling throughout
-    the preprocessing pipeline.
+    Handles multiple data types safely:
+    - String columns: replaces "None", "", "nan", "[]" with None
+    - List columns: replaces empty lists [] with None
+    - Skips non-existent columns (with warning)
+    - Skips numeric columns (no None-like strings to replace)
 
     Args:
-        df (pd.DataFrame): Input dataframe containing columns to clean.
-        columns (List[str]): List of column names where None strings should
-            be replaced. Non-existent columns are skipped with a warning.
+        df (pd.DataFrame): Input dataframe.
+        columns (List[str]): Columns to process. Non-existent columns are skipped.
 
     Returns:
-        pd.DataFrame: Dataframe with None string representations replaced
-            by proper NaN values.
+        pd.DataFrame: Dataframe with None-like values replaced.
     """
     columns = _validate_columns(df, columns, required=False)
+
     for col in columns:
-        df[col] = df[col].replace({"None": None, "": None})
-    print(f"[INFO] Replaced None strings in: {columns}")
+        # Skip if column is not string or list (e.g., numeric)
+        if not (df[col].dtype == 'object' or pd.api.types.is_string_dtype(df[col])):
+            print(f"[INFO] Skipped '{col}' (not string/list column, dtype={df[col].dtype})")
+            continue
+
+        # Detect if column contains lists
+        try:
+            has_lists = df[col].dropna().apply(lambda x: isinstance(x, list)).any()
+        except Exception:
+            has_lists = False
+
+        if has_lists:
+            # For list columns: replace empty lists with None
+            df[col] = df[col].apply(
+                lambda x: None if isinstance(x, list) and len(x) == 0 else x
+            )
+            print(f"[INFO] Cleaned empty lists in '{col}' (list column)")
+        else:
+            # For string columns: replace None-like strings
+            try:
+                df[col] = df[col].replace({
+                    "None": None,
+                    "": None,
+                    "[]": None,
+                    "nan": None
+                })
+                print(f"[INFO] Replaced None strings in '{col}' (string column)")
+            except Exception as e:
+                print(f"[WARNING] Could not process '{col}': {e}")
+
     return df
 
 
@@ -118,25 +147,36 @@ def remove_missing_values(df: pd.DataFrame, subset: Optional[List[str]] = None) 
     return df
 
 
-def remove_duplicates(df: pd.DataFrame, subset: Optional[List[str]] = None) -> pd.DataFrame:
-    """Remove exact duplicate rows from the dataframe.
-
-    Removes rows that are identical across all columns (or specified subset).
-    For user-item pair deduplication in implicit feedback scenarios, use
-    deduplicate_user_item() instead.
-
+def remove_duplicates(
+    df: pd.DataFrame, 
+    subset: Optional[List[str]] = None
+) -> pd.DataFrame:
+    """Remove duplicate rows from the dataframe.
+    
     Args:
-        df (pd.DataFrame): Input dataframe potentially containing duplicates.
-        subset (Optional[List[str]], optional): List of column names to consider
-            when detecting duplicates. If None, all columns are used to detect
-            duplicate rows. Defaults to None.
-
+        df (pd.DataFrame): Input dataframe.
+        subset (List[str], optional): Columns to consider for identifying 
+            duplicates. If None, uses all columns. 
+            ⚠️ Cannot include list/dict columns (not hashable).
+            For Amazon dataset, use: ['user_id', 'parent_asin', 'timestamp', 'rating']
+    
     Returns:
-        pd.DataFrame: Dataframe with duplicate rows removed. Only the first
-            occurrence of each duplicate is retained.
+        pd.DataFrame: Dataframe with duplicates removed.
+    
+    Raises:
+        ValueError: If subset contains non-hashable columns (lists, dicts).
     """
-    if subset:
+    if subset is not None:
         subset = _validate_columns(df, subset, required=False)
+        
+        # Check for unhashable types
+        for col in subset:
+            if df[col].apply(lambda x: isinstance(x, (list, dict))).any():
+                raise ValueError(
+                    f"Column '{col}' contains unhashable types (list/dict). "
+                    f"Exclude it from subset or convert to string first."
+                )
+    
     before = len(df)
     df = df.drop_duplicates(subset=subset)
     after = len(df)

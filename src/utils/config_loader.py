@@ -1,9 +1,25 @@
+"""
+Configuration loader for the recommendation system.
+Provides generic YAML loading and validated config loaders.
+"""
+
 import yaml
 from pathlib import Path
+from typing import Dict, Any, List, Optional
 
-def load_config(config_path: str) -> dict:
+
+# ============================================
+# GENERIC LOADER
+# ============================================
+def load_config(config_path: str) -> Dict[str, Any]:
     """
-    Generic function to load any YAML configuration file.
+    Load any YAML configuration file.
+    
+    Args:
+        config_path: Path to YAML config file
+        
+    Returns:
+        Configuration dictionary
     """
     if not Path(config_path).exists():
         raise FileNotFoundError(f"Config not found: {config_path}")
@@ -13,35 +29,125 @@ def load_config(config_path: str) -> dict:
     
     return config
 
-def load_tuning_config(config_path: str) -> dict:
+
+# ============================================
+# DATA CONFIG LOADER
+# ============================================
+def load_data_config(config_path: str = "configs/data_config.yaml") -> Dict[str, Any]:
     """
-    Specific function to load and validate experiment tuning configurations.
+    Load and validate data configuration.
+    
+    Args:
+        config_path: Path to data config YAML
+        
+    Returns:
+        Validated data configuration
     """
-    # Use the generic loader to read the file
     config = load_config(config_path)
     
-    # Validate that the necessary tuning sections exist
+    # Validate required sections
+    required_sections = ["dataset", "paths", "preprocessing"]
+    for section in required_sections:
+        if section not in config:
+            raise KeyError(f"Missing '{section}' section in {config_path}")
+    
+    # Validate dataset config
+    if "electronics" not in config.get("dataset", {}):
+        raise KeyError("Missing 'dataset.electronics' section")
+    
+    ds = config["dataset"]["electronics"]
+    if "ratings_url" not in ds or "metadata_url" not in ds:
+        raise KeyError("Missing ratings_url or metadata_url in dataset config")
+    
+    return config
+
+
+# ============================================
+# TUNING CONFIG LOADER
+# ============================================
+def load_tuning_config(config_path: str) -> Dict[str, Any]:
+    """
+    Load and validate experiment tuning configurations.
+    
+    Args:
+        config_path: Path to tuning config YAML
+        
+    Returns:
+        Validated tuning configuration
+    """
+    config = load_config(config_path)
+    
     required_sections = ["experiment", "search_space"]
     for section in required_sections:
         if section not in config:
             raise KeyError(f"Invalid tuning config: Missing '{section}' section in {config_path}")
-            
-    # 3. You can add deeper validation here if needed
+    
     if "name" not in config.get("experiment", {}):
         raise ValueError("Experiment 'name' must be defined in the config.")
-        
+    
     return config
 
 
+# ============================================
+# MODEL CONFIG LOADER
+# ============================================
+def load_model_config(config_path: str = "configs/model_config.yaml") -> Dict[str, Any]:
+    """
+    Load and validate model configuration.
+    
+    Args:
+        config_path: Path to model config YAML
+        
+    Returns:
+        Validated model configuration
+    """
+    config = load_config(config_path)
+    
+    # Validate required sections
+    required_sections = ["experiment", "evaluation", "models", "paths"]
+    for section in required_sections:
+        if section not in config:
+            raise KeyError(f"Missing '{section}' section in {config_path}")
+    
+    # Validate experiment config
+    exp = config.get("experiment", {})
+    required_exp = ["name", "train_path", "val_path"]
+    for key in required_exp:
+        if key not in exp:
+            raise KeyError(f"Missing 'experiment.{key}' in {config_path}")
+    
+    # Validate evaluation config
+    eval_cfg = config.get("evaluation", {})
+    if "k" not in eval_cfg:
+        raise KeyError(f"Missing 'evaluation.k' in {config_path}")
+    
+    # Validate models config
+    models_cfg = config.get("models", {})
+    if "common" not in models_cfg:
+        raise KeyError(f"Missing 'models.common' in {config_path}")
+    
+    # Validate each model has params
+    expected_models = ["ALS", "BPR", "SVD", "ItemKNN"]
+    for model_name in expected_models:
+        if model_name not in models_cfg:
+            raise KeyError(f"Missing 'models.{model_name}' in {config_path}")
+    
+    return config
+
+
+# ============================================
+# MAIN (
+# ============================================
 if __name__ == "__main__":
     try:
-        # Testing the data config
-        data_config = load_config("configs/data_config.yaml")
-        print("Data config loaded successfully.")
+        data_config = load_data_config("configs/data_config.yaml")
+        print(" Data config loaded successfully.")
         
-        # Testing the tuning config
         tuning_config = load_tuning_config("configs/experiments/exp_001.yaml")
-        print(f"Tuning config loaded for experiment: {tuning_config['experiment']['name']}")
+        print(f" Tuning config loaded for experiment: {tuning_config['experiment']['name']}")
+        
+        model_config = load_model_config("configs/model_config.yaml")
+        print(f" Model config loaded for experiment: {model_config['experiment']['name']}")
         
     except Exception as e:
-        print(f"Error: {e}")
+        print(f" Error: {e}")

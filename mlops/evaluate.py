@@ -1,11 +1,15 @@
+"""
+Model evaluation functions.
+"""
+
 import numpy as np
 from tqdm import tqdm
 
 
 def evaluate_model_at_k(model, val_matrix, users_to_evaluate, k=10):
     """
-    Evaluates the recommender model using Precision, Adjusted Precision,
-    Recall, Hit Rate, MRR, and NDCG.
+    Evaluates the recommender model using HitRate, Precision, Adjusted Precision,
+    Recall, MRR, and NDCG.
     
     Works with any model implementing the BaseRecommender interface
     (recommend_for_user method). Filtering of already-seen items during
@@ -26,6 +30,7 @@ def evaluate_model_at_k(model, val_matrix, users_to_evaluate, k=10):
     recalls = []
     mrrs = []
     ndcgs = []
+    error_count = 0
 
     for user_id in tqdm(users_to_evaluate, desc="Evaluating Users", leave=False):
         actual_items = set(val_matrix[user_id].indices)
@@ -37,6 +42,9 @@ def evaluate_model_at_k(model, val_matrix, users_to_evaluate, k=10):
             recs = model.recommend_for_user(user_id, n_recommendations=k)
             recommended_items = [item_id for item_id, score in recs]
         except Exception as e:
+            error_count += 1
+            if error_count <= 5:  # Log first 5 errors
+                print(f"[WARNING] Failed for user {user_id}: {e}")
             continue
 
         hits_in_k = [1 if item in actual_items else 0 for item in recommended_items]
@@ -72,6 +80,9 @@ def evaluate_model_at_k(model, val_matrix, users_to_evaluate, k=10):
         idcg = sum([1.0 / np.log2(rank + 1) for rank in range(1, possible_hits + 1)])
         ndcg = dcg / idcg if idcg > 0 else 0.0
         ndcgs.append(ndcg)
+
+    if error_count > 0:
+        print(f"[WARNING] Total errors during evaluation: {error_count}")
 
     return {
         f'HitRate_{k}': float(np.round(hits_count / len(users_to_evaluate), 4)),

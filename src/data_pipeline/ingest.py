@@ -69,7 +69,6 @@ def extract_jsonl_gz(gz_path: str, output_path: str,
                 
             record = json.loads(line)
             
-            # خد الـ columns المهمة بس
             if columns:
                 record = {k: record.get(k) for k in columns}
             

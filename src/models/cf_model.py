@@ -7,121 +7,86 @@ from sklearn.decomposition import TruncatedSVD
 from sklearn.metrics.pairwise import cosine_similarity
 
 
-
 class BaseRecommender(ABC):
-    """
-    Abstract Base Class for all recommendation models.
-    """
+    """Abstract Base Class for all recommendation models."""
+    
     def __init__(self, **kwargs):
         self.model = None
-
+    
     @abstractmethod
     def fit(self, interaction_matrix):
-        """Trains the model on the provided interaction matrix."""
         pass
-
+    
     @abstractmethod
     def recommend(self, target_id, n_recommendations=10):
-        """Generates recommendations for a given target ID (user or item)."""
         pass
 
 
 class ItemBasedKNN(BaseRecommender):
-    """
-    Item-Based Collaborative Filtering using K-Nearest Neighbors.
-    Computes similarities between items based on user interaction patterns.
-    """
+    """Item-Based Collaborative Filtering using K-Nearest Neighbors."""
+    
     def __init__(self, n_neighbors=20, metric='cosine', algorithm='brute'):
         super().__init__()
         self.n_neighbors = n_neighbors
         self.metric = metric
-        # 'brute' is usually required for sparse matrices with cosine similarity
         self.model = NearestNeighbors(
-            n_neighbors=self.n_neighbors, 
-            metric=self.metric, 
+            n_neighbors=self.n_neighbors,
+            metric=self.metric,
             algorithm=algorithm,
-            n_jobs=-1 
+            n_jobs=-1
         )
         self.item_matrix = None
-
+    
     def fit(self, interaction_matrix):
-        """
-        Trains the KNN model.
-        Note: For Item-Based KNN, we need the matrix to be (Items x Users).
-        If the input is (Users x Items), it needs to be transposed.
-        """
         print(f"[INFO] Fitting Item-Based KNN with metric='{self.metric}'...")
-        # Transpose matrix to represent Items as rows and Users as columns
-        self.item_matrix = interaction_matrix.T 
+        self.item_matrix = interaction_matrix.T
         self.model.fit(self.item_matrix)
-        print("[INFO] KNN Model fitting complete. ✅")
-
+        print("[INFO] KNN Model fitting complete. ")
+    
     def recommend(self, item_id, n_recommendations=10):
-        """
-        Recommends similar items for a given item_id.
-        """
         if self.item_matrix is None:
             raise ValueError("Model has not been trained. Call 'fit' first.")
-
-        # Extract the vector for the target item
-        target_item_vector = self.item_matrix[item_id]
         
-        # We query for n_recommendations + 1 because the item itself will be returned as the closest match
+        target_item_vector = self.item_matrix[item_id]
         distances, indices = self.model.kneighbors(
-            target_item_vector, 
+            target_item_vector,
             n_neighbors=n_recommendations + 1
         )
-
-        # Flatten arrays and remove the first item (which is the target_item itself)
+        
         distances = distances.flatten()[1:]
         indices = indices.flatten()[1:]
-
-        recommendations = list(zip(indices, distances))
-        return recommendations
+        
+        return list(zip(indices, distances))
     
     def recommend_for_user(self, user_id, n_recommendations=10):
-        """
-        Generates personalized recommendations by aggregating similar items 
-        for all items the user has previously interacted with.
-        """
         if self.item_matrix is None:
             raise ValueError("Model has not been trained. Call 'fit' first.")
-            
-        # Get items the user interacted with (item_matrix is Items x Users)
+        
         user_interacted_items = self.item_matrix[:, user_id].nonzero()[0]
         
         if len(user_interacted_items) == 0:
             return []
-            
+        
         candidate_items = {}
         
-        # Find similar items for each item the user interacted with
         for item_id in user_interacted_items:
-            # Get top 5 similar items per interacted item to optimize speed
             recs = self.recommend(item_id, n_recommendations=5)
             
             for rec_id, distance in recs:
                 if rec_id not in user_interacted_items:
-                    # Convert distance to similarity score
-                    sim_score = 1 - distance 
-                    
-                    # Aggregate scores if the same item is recommended multiple times
+                    sim_score = 1 - distance
                     if rec_id in candidate_items:
                         candidate_items[rec_id] += sim_score
                     else:
                         candidate_items[rec_id] = sim_score
-                        
-        # Sort candidate items by highest aggregated similarity score
-        sorted_candidates = sorted(candidate_items.items(), key=lambda x: x[1], reverse=True)
         
+        sorted_candidates = sorted(candidate_items.items(), key=lambda x: x[1], reverse=True)
         return sorted_candidates[:n_recommendations]
-    
+
 
 class ALSRecommender(BaseRecommender):
-    """
-    Alternating Least Squares (ALS) Recommender using the 'implicit' library.
-    Excellent for highly sparse implicit feedback datasets.
-    """
+    """Alternating Least Squares (ALS) Recommender using 'implicit' library."""
+    
     def __init__(self, factors=64, regularization=0.1, iterations=20, random_state=42):
         super().__init__()
         self.factors = factors
@@ -136,57 +101,41 @@ class ALSRecommender(BaseRecommender):
             random_state=self.random_state
         )
         self.user_item_matrix = None
-
-    def fit(self, interaction_matrix: csr_matrix):
-        """
-        Trains the ALS model.
-        Expects a user-by-item CSR matrix.
-        """
+    
+    def fit(self, interaction_matrix):
         print(f"[INFO] Fitting ALS Model with {self.factors} latent factors...")
         self.user_item_matrix = interaction_matrix
-        # implicit handles csr_matrix efficiently
         self.model.fit(self.user_item_matrix)
         print("[INFO] ALS Model fitting complete. ")
-
+    
     def recommend(self, item_id, n_recommendations=10):
-        """
-        Returns similar items for a given item_id (Item-to-Item similarity).
-        Used here to compare outputs directly with ItemBasedKNN.
-        """
         if self.user_item_matrix is None:
             raise ValueError("Model has not been trained. Call 'fit' first.")
-
-        # Get N+1 items because the target item itself will be included
+        
         item_ids, scores = self.model.similar_items(item_id, N=n_recommendations + 1)
         
         recommendations = []
         for idx, score in zip(item_ids, scores):
             if idx != item_id:
                 recommendations.append((idx, score))
-                
-        # Return exact number of requested recommendations
+        
         return recommendations[:n_recommendations]
-
+    
     def recommend_for_user(self, user_id, n_recommendations=10):
-        """
-        Generates personalized item recommendations for a specific user.
-        """
         if self.user_item_matrix is None:
             raise ValueError("Model has not been trained. Call 'fit' first.")
-            
+        
         item_ids, scores = self.model.recommend(
-            userid=user_id, 
-            user_items=self.user_item_matrix[user_id], 
+            userid=user_id,
+            user_items=self.user_item_matrix[user_id],
             N=n_recommendations
         )
         return list(zip(item_ids, scores))
 
 
 class BPRRecommender(BaseRecommender):
-    """
-    Bayesian Personalized Ranking (BPR) Recommender using 'implicit'.
-    Directly optimizes the ranking of items, making it highly effective for implicit feedback.
-    """
+    """Bayesian Personalized Ranking (BPR) Recommender using 'implicit' library."""
+    
     def __init__(self, factors=64, learning_rate=0.01, regularization=0.01, iterations=100, random_state=42):
         super().__init__()
         self.factors = factors
@@ -203,52 +152,41 @@ class BPRRecommender(BaseRecommender):
             random_state=self.random_state
         )
         self.user_item_matrix = None
-
-    def fit(self, interaction_matrix: csr_matrix):
-        """
-        Trains the BPR model.
-        """
+    
+    def fit(self, interaction_matrix):
         print(f"[INFO] Fitting BPR Model with {self.factors} latent factors...")
         self.user_item_matrix = interaction_matrix
         self.model.fit(self.user_item_matrix)
-        print("[INFO] BPR Model fitting complete. ✅")
-
+        print("[INFO] BPR Model fitting complete. ")
+    
     def recommend(self, item_id, n_recommendations=10):
-        """
-        Returns similar items for a given item_id.
-        """
         if self.user_item_matrix is None:
             raise ValueError("Model has not been trained. Call 'fit' first.")
-
+        
         item_ids, scores = self.model.similar_items(item_id, N=n_recommendations + 1)
         
         recommendations = []
         for idx, score in zip(item_ids, scores):
             if idx != item_id:
                 recommendations.append((idx, score))
-                
+        
         return recommendations[:n_recommendations]
-
+    
     def recommend_for_user(self, user_id, n_recommendations=10):
-        """
-        Generates personalized item recommendations for a specific user.
-        """
         if self.user_item_matrix is None:
             raise ValueError("Model has not been trained. Call 'fit' first.")
-            
+        
         item_ids, scores = self.model.recommend(
-            userid=user_id, 
-            user_items=self.user_item_matrix[user_id], 
+            userid=user_id,
+            user_items=self.user_item_matrix[user_id],
             N=n_recommendations
         )
         return list(zip(item_ids, scores))
-    
+
 
 class SVDRecommender(BaseRecommender):
-    """
-    Singular Value Decomposition (SVD) Recommender.
-    Uses TruncatedSVD from scikit-learn for dimensionality reduction.
-    """
+    """Singular Value Decomposition (SVD) Recommender using scikit-learn."""
+    
     def __init__(self, n_components=64, random_state=42):
         super().__init__()
         self.n_components = n_components
@@ -257,59 +195,92 @@ class SVDRecommender(BaseRecommender):
         self.user_item_matrix = None
         self.item_factors = None
         self.user_factors = None
-
+    
     def fit(self, interaction_matrix):
-        """
-        Trains the SVD model and extracts user and item latent factors.
-        """
         print(f"[INFO] Fitting SVD Model with {self.n_components} components...")
         self.user_item_matrix = interaction_matrix
-        
-        # Fit the model and get User Features (U * Sigma)
         self.user_factors = self.model.fit_transform(self.user_item_matrix)
-        
-        # Get Item Features (V^T) and transpose so items are rows
-        self.item_factors = self.model.components_.T 
+        self.item_factors = self.model.components_.T
         print("[INFO] SVD Model fitting complete. ✅")
-
+    
     def recommend(self, item_id, n_recommendations=10):
-        """
-        Returns similar items based on the Cosine Similarity of their latent factors.
-        """
         if self.item_factors is None:
             raise ValueError("Model has not been trained. Call 'fit' first.")
-
-        # Extract the target item vector
-        target_vector = self.item_factors[item_id].reshape(1, -1)
         
-        # Compute cosine similarity with all other items
+        target_vector = self.item_factors[item_id].reshape(1, -1)
         similarities = cosine_similarity(target_vector, self.item_factors).flatten()
         
-        # Get indices of the top similarities (excluding the item itself)
-        # argsort sorts ascending, so we take the last N+1 and reverse it
         top_indices = similarities.argsort()[-(n_recommendations + 1):][::-1]
         
         recommendations = []
         for idx in top_indices:
             if idx != item_id:
                 recommendations.append((idx, similarities[idx]))
-                
+        
         return recommendations[:n_recommendations]
-
+    
     def recommend_for_user(self, user_id, n_recommendations=10):
-        """
-        Generates personalized recommendations by reconstructing the matrix.
-        """
         if self.user_factors is None:
             raise ValueError("Model has not been trained. Call 'fit' first.")
-            
-        # Reconstruct user scores: dot product of user vector and all item vectors
+        
         user_scores = np.dot(self.user_factors[user_id], self.item_factors.T)
         
-        # Get items the user already interacted with to exclude them
         interacted_items = self.user_item_matrix[user_id].indices
-        user_scores[interacted_items] = -np.inf 
+        user_scores[interacted_items] = -np.inf
         
         top_indices = user_scores.argsort()[-n_recommendations:][::-1]
         
         return [(idx, user_scores[idx]) for idx in top_indices]
+
+
+# ============================================
+# MODEL FACTORY
+# ============================================
+def get_model(model_name: str, params: dict):
+    """
+    Factory function to create a model instance.
+    
+    Args:
+        model_name: Name of the model (ALS, BPR, SVD, ItemKNN)
+        params: Model hyperparameters
+        
+    Returns:
+        Instantiated model
+        
+    Raises:
+        ValueError: If model_name is unknown
+    """
+    models = {
+        "ALS": ALSRecommender,
+        "BPR": BPRRecommender,
+        "SVD": SVDRecommender,
+        "ItemKNN": ItemBasedKNN
+    }
+    
+    if model_name not in models:
+        raise ValueError(f"Unknown model: {model_name}. Available: {list(models.keys())}")
+    
+    if model_name == "ItemKNN":
+        params.pop("random_state", None)
+        
+    return models[model_name](**params)
+
+
+def get_model_params(config: dict, model_name: str) -> dict:
+    """
+    Merge common params with model-specific params from config.
+    
+    Args:
+        config: Full configuration dictionary
+        model_name: Name of the model
+        
+    Returns:
+        Dictionary of merged model parameters
+    """
+    if model_name not in config['models']:
+        raise ValueError(f"Model {model_name} not in config")
+    
+    common = config['models']['common']
+    specific = config['models'][model_name]
+    
+    return {**common, **specific}
