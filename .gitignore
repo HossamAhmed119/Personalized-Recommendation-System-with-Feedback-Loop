@@ -15,3 +15,5 @@ venv/
 system_env
 
 mlruns
+
+models
