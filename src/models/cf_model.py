@@ -1,4 +1,5 @@
 import numpy as np
+from typing import List, Tuple
 from abc import ABC, abstractmethod
 from sklearn.neighbors import NearestNeighbors
 from scipy.sparse import csr_matrix
@@ -14,12 +15,26 @@ class BaseRecommender(ABC):
         self.model = None
     
     @abstractmethod
-    def fit(self, interaction_matrix):
+    def fit(self, interaction_matrix: csr_matrix) -> None:
         pass
     
     @abstractmethod
-    def recommend(self, target_id, n_recommendations=10):
+    def recommend(self, target_id: int, n_recommendations: int = 10) -> List[Tuple[int, float]]:
         pass
+
+    def recommend_for_user(self, user_id: int, n_recommendations: int = 10) -> List[Tuple[int, float]]:
+        """
+        Universal wrapper to ensure global compatibility with the evaluation pipeline.
+        Automatically routes the evaluation call to the standard recommend method.
+
+        Args:
+            user_id (int): The index of the target user.
+            n_recommendations (int, optional): Number of items to return. Defaults to 10.
+
+        Returns:
+            List[Tuple[int, float]]: A list of tuples containing (item_index, prediction_score).
+        """
+        return self.recommend(target_id=user_id, n_recommendations=n_recommendations)
 
 
 class ItemBasedKNN(BaseRecommender):

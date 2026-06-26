@@ -1,19 +1,50 @@
+# ==========================================
+# 1. Security & Environment (البيئات الوهمية والمتغيرات السرية)
+# ==========================================
 .env
+venv/
+system_env/
+.env.*
 
+# ==========================================
+# 2. Data & Databases (البيانات وقواعد البيانات)
+# ==========================================
 data/raw/*
 data/embedded/*
 data/processed/*
-
 !data/raw/.gitkeep
 !data/embedded/.gitkeep
 !data/processed/.gitkeep
 
+*.db
+*.sqlite
+*.sqlite3
+
+# ==========================================
+# 3. Machine Learning & Models 
+# ==========================================
+# MLflow
+mlruns/
+models/
+
+*.pt
+*.pth
+*.h5
+*.pkl
+*.joblib
+*.safetensors
+
+# ==========================================
+# 4. Logs, Cache & Notebooks 
+# ==========================================
 logs/
 __pycache__/
 *.pyc
-venv/
-system_env
+.ipynb_checkpoints/
+.pytest_cache/
 
-mlruns
-
-models
+# ==========================================
+# 5. OS Generated Files 
+# ==========================================
+.DS_Store
+Thumbs.db

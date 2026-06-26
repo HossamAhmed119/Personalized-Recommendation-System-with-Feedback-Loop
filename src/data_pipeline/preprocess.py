@@ -780,3 +780,28 @@ def process_metadata(raw_meta_path: str, processed_path: str) -> pd.DataFrame:
     print(f"[INFO] Clean metadata saved successfully to: {output_file}")
     
     return meta_df
+
+def clean_metadata_text(text: str) -> str:
+    """
+    Cleans metadata text fields by removing brackets, specific symbols, 
+    and extra whitespaces. Handles stringified lists and empty values.
+    
+    Args:
+        text (str): The input text to clean.
+        
+    Returns:
+        str: The cleaned text string.
+    """
+    if not isinstance(text, str):
+        text = str(text)
+    
+    if text.strip() in ['[]', 'None', '']:
+        return ""
+        
+    # Remove brackets and specific extraneous symbols
+    text = re.sub(r'[\[\]✔️【】]', ' ', text)
+    
+    # Remove extra whitespaces
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    return text

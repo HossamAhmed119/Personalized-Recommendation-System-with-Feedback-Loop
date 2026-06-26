@@ -13,16 +13,12 @@ paths:
   raw_data: "data/raw/"
   processed_data: "data/processed/"
   embeddings_data: "data/embeddings/"
-  # Output file names (used by 02_preprocessing.ipynb)
   train_file: "train.parquet"
   val_file: "val.parquet"
   test_file: "test.parquet"
   metadata_file: "metadata_processed.parquet"
 
 preprocessing:
-  # -------- None String Replacement --------
-  # Applied to ALL string columns BEFORE dropping any columns
-  # Reason: Even columns we drop might have None-like strings
   none_replacement:
     columns: 
       - 'title'
@@ -33,68 +29,60 @@ preprocessing:
       - 'categories'
       - 'store'
 
-  # -------- Missing Values --------
   missing_values:
     subset: ['title', 'text']
 
-  # -------- Drop Columns --------
   drop_columns: ['images']
   
-  # -------- Deduplication --------
   deduplication:
     subset:
       - 'user_id'
       - 'parent_asin'
       - 'timestamp'
       - 'rating'
-  # -------- Outliers (Log1p, NOT IQR) --------
+
   outliers:
     columns: ['helpful_vote']
 
-
-  # -------- Implicit Feedback Setup --------
   implicit_feedback:
     user_col: 'user_id'
     item_col: 'parent_asin'   
     min_user_interactions: 10
 
-
-  # -------- Spam Detection --------
   spam_detection:
     max_reviews_per_day: 5
     min_time_gap: 10
 
-  # -------- Confidence Weights --------
   review_weight:
     verified: 1.0
     unverified: 0.7
 
-  # -------- Text Filter --------
   text_filter:
     min_words: 5
     max_words: 250
 
-  # -------- Iterative K-Core (CRITICAL for ALS) --------
   iterative_k_core:
     columns_config:
       user_id: 3
       parent_asin: 3
     max_iterations: 3
 
-  # -------- Top-N Items Filter --------
   filter_top_n:
     item_col: 'parent_asin'
     top_n: 10000
 
-  # -------- Time-Based Split --------
   split:
     val_year: 2021   # 2021 → val
     test_year: 2022  # 2022 → test (SEALED until final eval)
 
-  # -------- Label Encoding --------
   encode:
-    columns: ['user_id', 'parent_asin']  
+    columns: ['user_id', 'parent_asin'] 
 
-  # -------- Type Conversion --------
   convert_to_integer:
     columns: ['verified_purchase']
+
+# -------- NEW: Production Feature Engineering Updates --------
+feature_engineering:
+  min_timestamp: '2017-01-01'
+  hybrid_text_column: "combined_text"
+  metadata_id_column: "parent_asin"
