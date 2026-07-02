@@ -17,7 +17,9 @@ paths:
   val_file: "val.parquet"
   test_file: "test.parquet"
   metadata_file: "metadata_processed.parquet"
-
+  raw_meta_parquet: "data/raw/Electronics_metadata.parquet"
+  chroma_db_dir: "data/embeddings/chroma_db/"
+  
 preprocessing:
   none_replacement:
     columns: 

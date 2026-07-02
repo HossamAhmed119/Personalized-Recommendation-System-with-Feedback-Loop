@@ -10,7 +10,7 @@ system_env/
 # 2. Data & Databases 
 # ==========================================
 data/raw/*
-data/embedded/*
+data/embeddings/*
 data/processed/*
 !data/raw/.gitkeep
 !data/embedded/.gitkeep
