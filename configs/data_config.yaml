@@ -71,20 +71,3 @@ preprocessing:
 
   filter_top_n:
     item_col: 'parent_asin'
-    top_n: 10000
-
-  split:
-    val_year: 2021   # 2021 → val
-    test_year: 2022  # 2022 → test (SEALED until final eval)
-
-  encode:
-    columns: ['user_id', 'parent_asin'] 
-
-  convert_to_integer:
-    columns: ['verified_purchase']
-
-# -------- NEW: Production Feature Engineering Updates --------
-feature_engineering:
-  min_timestamp: '2017-01-01'
-  hybrid_text_column: "combined_text"
-  metadata_id_column: "parent_asin"

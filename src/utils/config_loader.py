@@ -134,9 +134,40 @@ def load_model_config(config_path: str = "configs/model_config.yaml") -> Dict[st
     
     return config
 
+# ============================================
+# APP CONFIG LOADER
+# ============================================
+def load_app_config(config_path: str = "configs/app_config.yaml") -> Dict[str, Any]:
+    """
+    Load and validate the application configuration for the UI and API.
+    
+    Args:
+        config_path: Path to app config YAML
+        
+    Returns:
+        Validated app configuration dictionary
+    """
+    config = load_config(config_path)
+    
+    # Validate required sections
+    required_sections = ["app", "database", "paths", "ui"]
+    for section in required_sections:
+        if section not in config:
+            raise KeyError(f"Missing '{section}' section in {config_path}")
+            
+    # Validate database paths
+    db_cfg = config.get("database", {})
+    if "interactions_db" not in db_cfg:
+        raise KeyError(f"Missing 'database.interactions_db' in {config_path}")
+        
+    return config
 
 # ============================================
 # MAIN (
+# ============================================
+
+# ============================================
+# MAIN
 # ============================================
 if __name__ == "__main__":
     try:
@@ -148,6 +179,9 @@ if __name__ == "__main__":
         
         model_config = load_model_config("configs/model_config.yaml")
         print(f" Model config loaded for experiment: {model_config['experiment']['name']}")
+
+        app_config = load_app_config("configs/app_config.yaml")
+        print(f" App config loaded for: {app_config['app']['name']}")
         
     except Exception as e:
         print(f" Error: {e}")

@@ -1,150 +1,172 @@
+import logging
 import os
-import yaml
-import torch
+from typing import Dict, List, Optional
+
 import chromadb
+import pandas as pd
+import requests
+import yaml
 from chromadb.utils import embedding_functions
-from openai import OpenAI
+
+logger = logging.getLogger(__name__)
 
 class ProductRetriever:
-    def __init__(self, config_path="configs/data_config.yaml", llm_model="openai/gpt-oss-20b:free"):
-        """
-        Initialize the Retriever with ChromaDB for semantic search 
-        and OpenRouter for LLM generation.
-        """
-        print("[INFO] Initializing Product Retriever...")
-        
-        # 1. Load Configuration
-        if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Configuration file not found at {config_path}")
-            
-        with open(config_path, "r", encoding="utf-8") as file:
-            config = yaml.safe_load(file)
-            
-        db_persist_dir = config['paths']['chroma_db_dir']
-        
-        # 2. Initialize Vector Database (ChromaDB)
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.chroma_client = chromadb.PersistentClient(path=db_persist_dir)
-        self.embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="all-MiniLM-L6-v2",
-            device=self.device
-        )
-        
-        # Fetch the pre-built collection
-        try:
-            self.collection = self.chroma_client.get_collection(
-                name="amazon_full_catalog",
-                embedding_function=self.embedding_func
-            )
-            print(f"[INFO] Successfully connected to ChromaDB on device: {self.device.upper()}")
-        except ValueError:
-            raise ValueError("[ERROR] Collection 'amazon_full_catalog' not found. Please run vector_store.py first.")
+    def __init__(self, app_config_path: str, data_config_path: str):
+        with open(app_config_path, "r", encoding="utf-8") as f:
+            self.app_config = yaml.safe_load(f)
+        with open(data_config_path, "r", encoding="utf-8") as f:
+            self.data_config = yaml.safe_load(f)
 
-        # 3. Initialize OpenRouter LLM Client
-        self.api_key = os.getenv("OPENROUTER_API_KEY")
+        self.item_id_col = self.app_config["schema"]["item_id_col"]
+        self.title_col = self.app_config["schema"].get("title_col", "title")
+        self.description_col = self.app_config["schema"].get("description_col", "description")
+
+        self._chroma_client: Optional[chromadb.ClientAPI] = None
+        self._collection = None
+        self.products_df: Optional[pd.DataFrame] = None
+
+        api_key_env_var = self.app_config["rag"]["api_key_env_var"]
+        self.api_key = os.environ.get(api_key_env_var)
         if not self.api_key:
-            print("[WARNING] OPENROUTER_API_KEY environment variable is not set. LLM features will fail.")
-            
-        self.llm_client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=self.api_key or "DUMMY_KEY"
-        )
-        # Note: Replace with your specific OpenRouter 20B model ID if needed
-        self.model_id = llm_model 
-
-    def search_products(self, query, top_k=5):
-        """
-        Search the vector database for products matching the user query.
-        """
-        print(f"\n[INFO] Searching for: '{query}'")
-        results = self.collection.query(
-            query_texts=[query],
-            n_results=top_k
-        )
-        
-        documents = results.get('documents', [[]])[0]
-        metadatas = results.get('metadatas', [[]])[0]
-        
-        if not documents:
-            return "No matching products found.", []
-            
-        # Format the retrieved documents into a clean context block
-        context_block = "\n\n--- PRODUCT ---\n".join(documents)
-        return context_block, metadatas
-
-    def generate_recommendation(self, user_query, context_block):
-        """
-        Send the query and retrieved context to the LLM via OpenRouter.
-        """
-        # This  prompt forces the LLM to compare, rank, and list all retrieved top_k products
-        system_prompt = (
-            "You are an expert Amazon product recommendation assistant.\n"
-            "Your task is to analyze, compare, and rank ALL the products provided in the context based on how well they match the user's request.\n\n"
-            "Strict Instructions:\n"
-            "1. You MUST list and evaluate ALL products present in the provided context block. Do not omit any product.\n"
-            "2. Rank the products from best match to lowest match based on the user's criteria.\n"
-            "3. For each product, provide a clear breakdown of why it is better or worse than the other options (e.g., Performance, RAM, Value for money).\n"
-            "4. Format your response cleanly using Markdown headings, bullet points, and a comprehensive comparison table comparing all products side-by-side.\n"
-            "5. Rely ONLY on the provided context. Do not hallucinate or invent specifications."
-        )
-        
-        user_prompt = f"User Request: {user_query}\n\nAvailable Products Context:\n{context_block}"
-        
-        print(f"[INFO] Generating response using model: {self.model_id}...")
-        
-        try:
-            response = self.llm_client.chat.completions.create(
-                model=self.model_id,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=0.3,
-                max_tokens=2500 # Increased tokens to fit the comprehensive 5-product comparison
+            logger.warning(
+                "Environment variable '%s' is not set. RAG calls will fail until it is configured.",
+                api_key_env_var,
             )
-            return response.choices[0].message.content
-            
-        except Exception as e:
-            return f"[ERROR] LLM Generation failed: {str(e)}"
 
-    def ask(self, query, top_k=5):
-        """
-        End-to-end pipeline: Retrieve -> Generate -> Return
-        """
-        context_block, metadatas = self.search_products(query, top_k)
-        
-        if not metadatas:
-            return "Sorry, I couldn't find any products matching your criteria in the catalog."
-            
-        llm_response = self.generate_recommendation(query, context_block)
-        return llm_response
+    def load_products(self, products_df: pd.DataFrame) -> None:
+        self.products_df = products_df
 
-if __name__ == "__main__":
-    # Test the Retriever Pipeline
-    
-    # IMPORTANT: Set your OpenRouter API Key for testing
-    # Uncomment and replace the placeholder below, or set it in your terminal environment
-    # os.environ["OPENROUTER_API_KEY"] = "sk-or-v1-..."
-    
-    # You can change the model ID here to your preferred 20B OpenRouter model
-    CHOSEN_MODEL = "mistralai/mixtral-8x7b-instruct" 
-    
-    try:
-        retriever = ProductRetriever(
-            config_path="configs/data_config.yaml",
-            llm_model=CHOSEN_MODEL
-        )
-        
-        test_query = "I am looking for a 27-inch curved gaming monitor with at least 144Hz refresh rate."
-        
-        print("\n" + "="*50)
-        print("TESTING RETRIEVAL AND GENERATION")
-        print("="*50)
-        
-        final_answer = retriever.ask(test_query, top_k=3)
-        
-        print("\n[FINAL LLM RESPONSE]:\n")
-        print(final_answer)
-        
-    except Exception as e:
-        print(f"\n[CRITICAL ERROR] {e}")
+    def _get_client(self):
+        if self._chroma_client is None:
+            persist_dir = self.app_config["chromadb"]["persist_directory"]
+            self._chroma_client = chromadb.PersistentClient(path=persist_dir)
+            logger.info("Initialized ChromaDB client at %s", persist_dir)
+        return self._chroma_client
+
+    def _get_collection(self):
+        if self._collection is None:
+            client = self._get_client()
+            collection_name = self.app_config["chromadb"]["collection_name"]
+            embed_fn = embedding_functions.DefaultEmbeddingFunction()
+            self._collection = client.get_or_create_collection(
+                name=collection_name, embedding_function=embed_fn
+            )
+            logger.info("Connected to ChromaDB collection '%s'", collection_name)
+        return self._collection
+
+    def index_products(self, batch_size: int = 256) -> None:
+        if self.products_df is None:
+            raise RuntimeError("Call load_products() before index_products().")
+
+        collection = self._get_collection()
+
+        if collection.count() >= len(self.products_df):
+            logger.info("ChromaDB collection already indexed (%d items). Skipping.", collection.count())
+            return
+
+        docs, ids, metadatas = [], [], []
+        for _, row in self.products_df.iterrows():
+            title_val = row.get(self.title_col, "")
+            if isinstance(title_val, pd.Series):
+                title_val = title_val.iloc[0]
+            
+            text = str(title_val)
+
+            if self.description_col and self.description_col in row:
+                desc_val = row[self.description_col]
+                if isinstance(desc_val, pd.Series):
+                    desc_val = desc_val.iloc[0]
+                
+                desc_str = str(desc_val).strip()
+                if desc_str and desc_str.lower() not in ('nan', 'none', '<na>', 'nat'):
+                    text += " " + desc_str
+
+            item_id = row[self.item_id_col]
+            if isinstance(item_id, pd.Series):
+                item_id = item_id.iloc[0]
+
+            docs.append(text)
+            ids.append(str(item_id))
+            metadatas.append({"parent_asin": str(item_id)})
+
+        try:
+            for start in range(0, len(docs), batch_size):
+                end = start + batch_size
+                collection.upsert(
+                    documents=docs[start:end],
+                    ids=ids[start:end],
+                    metadatas=metadatas[start:end],
+                )
+            logger.info("Indexed %d products into ChromaDB.", len(docs))
+        except Exception:
+            logger.exception("Failed to index products into ChromaDB.")
+            raise
+
+    def semantic_search(self, query: str, top_k: int = 5) -> List[Dict]:
+        collection = self._get_collection()
+        try:
+            results = collection.query(query_texts=[query], n_results=top_k)
+        except Exception:
+            logger.exception("ChromaDB query failed for query='%s'", query)
+            return []
+
+        hits = []
+        documents = results.get("documents", [[]])[0]
+        metadatas = results.get("metadatas", [[]])[0]
+        distances = results.get("distances", [[]])[0]
+
+        for doc, meta, dist in zip(documents, metadatas, distances):
+            hits.append({"parent_asin": meta["parent_asin"], "document": doc, "distance": dist})
+        return hits
+
+    @staticmethod
+    def _build_context(hits: List[Dict]) -> str:
+        lines = [f"- parent_asin: {hit['parent_asin']} | {hit['document'][:200]}" for hit in hits]
+        return "\n".join(lines)
+
+    def chat(
+        self,
+        user_message: str,
+        conversation_history: Optional[List[Dict]] = None,
+        wants_recommendations: bool = False,
+    ) -> str:
+        if not self.api_key:
+            return "The assistant is not fully configured yet (missing OpenRouter API key)."
+
+        messages = [{"role": "system", "content": self.app_config["rag"]["system_prompt"]}]
+
+        if conversation_history:
+            messages.extend(conversation_history)
+
+        if wants_recommendations:
+            hits = self.semantic_search(user_message, top_k=5)
+            context = self._build_context(hits)
+            augmented_message = (
+                f"{user_message}\n\nRelevant catalog items "
+                f"(reference them by parent_asin only, do not invent others):\n{context}"
+            )
+            messages.append({"role": "user", "content": augmented_message})
+        else:
+            messages.append({"role": "user", "content": user_message})
+
+        try:
+            response = requests.post(
+                url=f"{self.app_config['rag']['api_base']}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": self.app_config["rag"]["model"],
+                    "messages": messages,
+                    "temperature": self.app_config["rag"]["temperature"],
+                    "max_tokens": self.app_config["rag"]["max_tokens"],
+                },
+                timeout=30,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            return payload["choices"][0]["message"]["content"]
+        except Exception:
+            logger.exception("OpenRouter chat completion failed for message='%s'", user_message)
+            return "Sorry, I ran into an issue reaching the assistant. Please try again."
