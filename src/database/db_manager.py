@@ -74,3 +74,18 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute('SELECT user_id, is_new FROM users ORDER BY created_at DESC')
             return cursor.fetchall()
+        
+    def get_user_interactions(self, user_id: str) -> List[Tuple]:
+            """Fetch a specific user's interaction history."""
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    '''
+                    SELECT product_id, interaction_type, timestamp 
+                    FROM interactions 
+                    WHERE user_id = ? 
+                    ORDER BY timestamp DESC
+                    ''', 
+                    (user_id,)
+                )
+                return cursor.fetchall()
