@@ -369,7 +369,7 @@ def plot_scatterplot(
     threshold_x: Optional[float] = None,
     threshold_y: Optional[float] = None,
     threshold_label: str = "",
-    log_scale_y: bool = False       # ← جديد
+    log_scale_y: bool = False      
 ) -> None:
     """Create a scatter plot for relationship and anomaly analysis.
 
@@ -412,7 +412,7 @@ def plot_scatterplot(
     if threshold_x is not None or threshold_y is not None:
         plt.legend()
 
-    if log_scale_y:                  # ← جديد
+    if log_scale_y:                  
         plt.yscale('log')
 
     plt.title(title, fontsize=14, fontweight='bold')
@@ -461,7 +461,7 @@ def plot_categorical_overview(
     value_counts = df[column].value_counts(dropna=False)
 
     if sort_by_index:
-        value_counts = value_counts.sort_index()  # ← لازم تتعمل قبل أي حاجة تانية
+        value_counts = value_counts.sort_index() 
 
     if len(value_counts) > top_n:
         if sort_by_index:

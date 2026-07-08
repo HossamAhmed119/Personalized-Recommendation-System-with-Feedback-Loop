@@ -44,6 +44,6 @@ chromadb:
 rag:
   api_key_env_var: "OPENROUTER_API_KEY"
   api_base: "https://openrouter.ai/api/v1"
-  model: "google/gemma-4-26b-a4b-it:free"
+  model: "openai/gpt-oss-20b:free"
   temperature: 0.3
   max_tokens: 2500
