@@ -19,10 +19,10 @@ paths:
   metadata_file: "metadata_processed.parquet"
   raw_meta_parquet: "data/raw/Electronics_metadata.parquet"
   chroma_db_dir: "data/embeddings/chroma_db/"
-  
+
 preprocessing:
   none_replacement:
-    columns: 
+    columns:
       - 'title'
       - 'text'
       - 'images'
@@ -35,7 +35,7 @@ preprocessing:
     subset: ['title', 'text']
 
   drop_columns: ['images']
-  
+
   deduplication:
     subset:
       - 'user_id'
@@ -43,12 +43,17 @@ preprocessing:
       - 'timestamp'
       - 'rating'
 
+  convert_to_integer:
+    columns:
+      - 'rating'
+      - 'helpful_vote'
+
   outliers:
     columns: ['helpful_vote']
 
   implicit_feedback:
     user_col: 'user_id'
-    item_col: 'parent_asin'   
+    item_col: 'parent_asin'
     min_user_interactions: 10
 
   spam_detection:
@@ -71,3 +76,15 @@ preprocessing:
 
   filter_top_n:
     item_col: 'parent_asin'
+    top_n: 10000
+
+
+  encode:
+    columns:
+      - 'user_id'
+      - 'parent_asin'
+
+  
+  split:
+    val_year: 2021
+    test_year: 2022
