@@ -1,0 +1,56 @@
+# ============================================
+# Production & CF Models Configuration
+# Location: configs/model_config.yaml
+# ============================================
+
+experiment:
+  name: "3_Production_Models"  # Updated to link cleanly with the new production lifecycle
+  train_path: "data/processed/train.parquet"
+  val_path: "data/processed/val.parquet"
+  test_path: "data/processed/test.parquet"
+
+evaluation:
+  k: 10
+  n_sample_users: 5000
+  tuning_sample_rate: 0.10  #  strategic 10% sampling rule
+  random_state: 42
+
+models:
+  common:
+    random_state: 42
+  
+  ALS:
+    factors: 64
+    regularization: 0.1
+    iterations: 20
+  
+  BPR:
+    factors: 64
+    learning_rate: 0.01
+    regularization: 0.01
+    iterations: 100
+  
+  SVD:
+    n_components: 64
+  
+  ItemKNN:
+    n_neighbors: 20
+    metric: "cosine"
+    algorithm: "brute"
+
+# -------- NEW: Production Hybrid Artifacts --------
+  content_based:
+    text_features: ['title', 'description', 'features', 'categories']
+    vectorizer: "TF-IDF"
+
+  hybrid_production:
+    optimal_alpha: 0.70  # The winning alpha from Phase 1 Grid Search
+    final_metrics:
+      hitrate_10: 0.0471  # Locked benchmark over 346,743 users
+      ndcg_10: 0.0158     # Locked benchmark over 346,743 users
+
+paths:
+  reports_dir: "reports/"
+  comparison_plot: "model_comparison.png"
+  time_plot: "model_time_comparison.png"
+  results_csv: "model_comparison_results.csv"

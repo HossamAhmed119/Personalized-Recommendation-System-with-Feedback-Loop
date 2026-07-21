@@ -1,10 +1,90 @@
+# ============================================
+# Data Configuration — Amazon Electronics 2023
+# ============================================
+
 dataset:
   electronics:
     ratings_url: "https://mcauleylab.ucsd.edu/public_datasets/data/amazon_2023/raw/review_categories/Electronics.jsonl.gz"
     metadata_url: "https://mcauleylab.ucsd.edu/public_datasets/data/amazon_2023/raw/meta_categories/meta_Electronics.jsonl.gz"
-    sample_size: 100000  
-    
+    sample_size: 20000000    # 20M rows for development
+    chunk_size: 1000000      # 20 chunks for ingestion
+
 paths:
   raw_data: "data/raw/"
   processed_data: "data/processed/"
   embeddings_data: "data/embeddings/"
+  train_file: "train.parquet"
+  val_file: "val.parquet"
+  test_file: "test.parquet"
+  metadata_file: "metadata_processed.parquet"
+  raw_meta_parquet: "data/raw/Electronics_metadata.parquet"
+  chroma_db_dir: "data/embeddings/chroma_db/"
+
+preprocessing:
+  none_replacement:
+    columns:
+      - 'title'
+      - 'text'
+      - 'images'
+      - 'description'
+      - 'features'
+      - 'categories'
+      - 'store'
+
+  missing_values:
+    subset: ['title', 'text']
+
+  drop_columns: ['images']
+
+  deduplication:
+    subset:
+      - 'user_id'
+      - 'parent_asin'
+      - 'timestamp'
+      - 'rating'
+
+  convert_to_integer:
+    columns:
+      - 'rating'
+      - 'helpful_vote'
+
+  outliers:
+    columns: ['helpful_vote']
+
+  implicit_feedback:
+    user_col: 'user_id'
+    item_col: 'parent_asin'
+    min_user_interactions: 10
+
+  spam_detection:
+    max_reviews_per_day: 5
+    min_time_gap: 10
+
+  review_weight:
+    verified: 1.0
+    unverified: 0.7
+
+  text_filter:
+    min_words: 5
+    max_words: 250
+
+  iterative_k_core:
+    columns_config:
+      user_id: 3
+      parent_asin: 3
+    max_iterations: 3
+
+  filter_top_n:
+    item_col: 'parent_asin'
+    top_n: 10000
+
+
+  encode:
+    columns:
+      - 'user_id'
+      - 'parent_asin'
+
+  
+  split:
+    val_year: 2021
+    test_year: 2022

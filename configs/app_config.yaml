@@ -1,0 +1,49 @@
+# ============================================
+# Application Configuration 
+# ============================================
+
+app:
+  name: "Recommendation System UI"
+  host: "127.0.0.1"
+  port: 8000
+
+database:
+  interactions_db: "data/processed/interactions.sqlite"
+  image_mapping: "data/processed/asin_to_image.json"
+  
+paths:
+  processed_users: "data/processed/users_list.parquet"
+  processed_items: "data/processed/metadata_processed.parquet"
+
+ui:
+  default_product_image: "assets/placeholder.jpg"
+  products_per_row: 4
+
+recommendation:
+  ncf_weight: 0.7
+  cbf_weight: 0.3
+  top_k_default: 10
+
+models:
+  ncf_checkpoint: "models/best_ncf_model.pt"
+  cbf_model: "models/best_cb_model.pkl"
+  encoders: "data/processed/encoders.pkl"
+
+schema:
+  item_id_col: "parent_asin"
+  user_id_col: "user_id"
+
+# ============================================
+# RAG & ChromaDB Configuration 
+# ============================================
+
+chromadb:
+  persist_directory: "data/embeddings/chroma_db/"
+  collection_name: "amazon_full_catalog"
+
+rag:
+  api_key_env_var: "OPENROUTER_API_KEY"
+  api_base: "https://openrouter.ai/api/v1"
+  model: "openai/gpt-oss-20b:free"
+  temperature: 0.3
+  max_tokens: 2500
